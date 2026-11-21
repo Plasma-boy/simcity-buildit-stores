@@ -14,6 +14,27 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+    /* Visible Horizontal Slidebar for Store Row */
+    .store-slidebar {
+      scrollbar-width: thin;
+      scrollbar-color: #38bdf8 #0f172a;
+    }
+    .store-slidebar::-webkit-scrollbar {
+      height: 8px;
+    }
+    .store-slidebar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.85);
+      border-radius: 999px;
+      border: 1px solid rgba(30, 41, 59, 0.8);
+    }
+    .store-slidebar::-webkit-scrollbar-thumb {
+      background: linear-gradient(90deg, #0284c7, #22d3ee);
+      border-radius: 999px;
+    }
+    .store-slidebar::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(90deg, #0ea5e9, #67e8f9);
+    }
+
     /* Seamless Store Artwork Presentation */
     .store-art-wrap {
       position: relative;
@@ -99,7 +120,7 @@
             <h1 class="text-base sm:text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
               SimCity BuildIt — Store &amp; Item Explorer
             </h1>
-            <p class="text-xs text-slate-400">Swipe or drag stores in the row below • Tap or click any store to view items</p>
+            <p class="text-xs text-slate-400">Swipe or slide stores in the row below • Tap or click any store to view items</p>
           </div>
         </div>
 
@@ -149,13 +170,13 @@
   <!-- Main Workspace -->
   <main class="max-w-7xl mx-auto px-4 py-5 space-y-5">
 
-    <!-- Swipeable / Draggable Row of Commercial Stores -->
+    <!-- Swipeable / Slidebar Row of Commercial Stores -->
     <section aria-label="Commercial Stores Row" class="space-y-2.5">
       <div class="flex items-center justify-between px-1">
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Commercial Stores</span>
           <span class="text-[11px] text-cyan-400/90 font-medium sm:hidden">← Swipe →</span>
-          <span class="text-[11px] text-slate-500 hidden sm:inline">Drag row, scroll wheel, or use arrows</span>
+          <span class="text-[11px] text-slate-500 hidden sm:inline">Use slidebar, drag row, scroll wheel, or arrows</span>
         </div>
         <div class="flex items-center gap-2">
           <span id="storeCount" class="text-xs text-slate-500 font-medium"></span>
@@ -176,12 +197,10 @@
         </div>
       </div>
 
-      <div class="relative">
-        <div
-          id="storeList"
-          class="flex items-stretch gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth pb-1 cursor-grab active:cursor-grabbing select-none"
-        ></div>
-      </div>
+      <div
+        id="storeList"
+        class="store-slidebar flex items-stretch gap-3 overflow-x-auto pb-2.5 cursor-grab active:cursor-grabbing select-none"
+      ></div>
     </section>
 
     <!-- Selected Store Banner + Producible Items Directly Below -->
@@ -677,7 +696,7 @@
       if (scrollIntoRow) {
         const activeCard = document.querySelector(`[data-store-id="${id}"]`);
         if (activeCard) {
-          activeCard.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+          activeCard.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
         }
       }
     }
@@ -685,19 +704,22 @@
     function scrollStoreRow(direction) {
       const row = document.getElementById("storeList");
       if (!row) return;
-      const step = Math.max(240, Math.round(row.clientWidth * 0.75));
-      row.scrollBy({ left: direction * step, behavior: "smooth" });
+      const step = Math.max(260, Math.round(row.clientWidth * 0.75));
+      row.scrollLeft += direction * step;
     }
 
     function initStoreRowDesktopControls() {
       const row = document.getElementById("storeList");
       if (!row) return;
 
-      // Translate vertical wheel scroll into smooth horizontal sliding over the row
+      // Translate vertical wheel scroll into horizontal sliding over the row
       row.addEventListener("wheel", (e) => {
-        if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && row.scrollWidth > row.clientWidth) {
-          e.preventDefault();
-          row.scrollLeft += e.deltaY;
+        if (row.scrollWidth > row.clientWidth) {
+          const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+          if (delta !== 0) {
+            e.preventDefault();
+            row.scrollLeft += delta;
+          }
         }
       }, { passive: false });
 
@@ -711,29 +733,24 @@
         if (e.button !== 0) return;
         isMouseDown = true;
         hasDragged = false;
-        startX = e.pageX - row.offsetLeft;
+        startX = e.clientX;
         startScrollLeft = row.scrollLeft;
-        row.classList.add("scroll-auto");
-        row.classList.remove("scroll-smooth", "snap-x", "snap-mandatory");
       });
 
       window.addEventListener("mousemove", (e) => {
         if (!isMouseDown) return;
-        const x = e.pageX - row.offsetLeft;
-        const walk = x - startX;
+        const walk = e.clientX - startX;
         if (Math.abs(walk) > 6) {
           hasDragged = true;
         }
         if (hasDragged) {
-          row.scrollLeft = startScrollLeft - walk * 1.15;
+          row.scrollLeft = startScrollLeft - walk * 1.2;
         }
       });
 
       window.addEventListener("mouseup", () => {
         if (!isMouseDown) return;
         isMouseDown = false;
-        row.classList.remove("scroll-auto");
-        row.classList.add("scroll-smooth", "snap-x", "snap-mandatory");
         if (hasDragged) {
           suppressNextStoreClick = true;
           setTimeout(() => {
@@ -764,7 +781,7 @@
             type="button"
             data-store-id="${store.id}"
             onclick="selectStore('${store.id}')"
-            class="store-card ${isSelected ? "is-active" : ""} group relative overflow-hidden shrink-0 snap-start w-56 sm:w-64 text-left p-3 rounded-2xl border transition-all duration-200 flex items-center gap-3 ${
+            class="store-card ${isSelected ? "is-active" : ""} group relative overflow-hidden shrink-0 w-56 sm:w-64 text-left p-3 rounded-2xl border transition-all duration-200 flex items-center gap-3 ${
               isSelected
                 ? "bg-gradient-to-br from-slate-800 via-slate-900 to-cyan-950/45 border-cyan-400/80 shadow-lg shadow-cyan-950/50"
                 : q && matchCount > 0
