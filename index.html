@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SimCity BuildIt — Interactive Store &amp; Item Explorer (v1.6)</title>
+  <title>SimCity BuildIt — Interactive Store &amp; Item Explorer (v1.7)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
-      background-color: #090e1a;
+      background-color: #070b14;
       color: #f8fafc;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
@@ -16,40 +16,55 @@
 
     /* Custom Scrollbar for Store Sidebar */
     .store-scroll::-webkit-scrollbar { width: 5px; }
-    .store-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); border-radius: 999px; }
-    .store-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 999px; }
-    .store-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }
+    .store-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.35); border-radius: 999px; }
+    .store-scroll::-webkit-scrollbar-thumb { background: #263349; border-radius: 999px; }
+    .store-scroll::-webkit-scrollbar-thumb:hover { background: #3b4f70; }
 
-    /* Isometric Building Showcase Frame */
+    /* Sleek Studio Spotlight Frame (removes harsh boxed-in crop look) */
     .store-art-frame {
       position: relative;
       overflow: hidden;
-      background: radial-gradient(circle at 50% 48%, rgba(56, 189, 248, 0.18), rgba(15, 23, 42, 0.94) 74%);
+      background:
+        radial-gradient(circle at 50% 52%, rgba(56, 189, 248, 0.16), rgba(15, 23, 42, 0.25) 58%, rgba(7, 11, 20, 0.88) 100%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 12px rgba(0, 0, 0, 0.35);
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+    .store-art-frame::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: inset 0 0 10px 3px rgba(7, 11, 20, 0.55);
+      pointer-events: none;
+    }
+    .store-card.is-active .store-art-frame {
+      background:
+        radial-gradient(circle at 50% 52%, rgba(34, 211, 238, 0.26), rgba(14, 116, 144, 0.14) 60%, rgba(7, 11, 20, 0.85) 100%);
+      box-shadow: inset 0 1px 0 rgba(165, 243, 252, 0.2), 0 0 18px rgba(34, 211, 238, 0.16);
     }
     .store-art-img {
       width: 100%;
       height: 100%;
       object-fit: contain;
-      padding: 3px;
+      padding: 4px;
       transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), filter 0.25s ease;
-      filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.55));
+      filter: drop-shadow(0 6px 9px rgba(0, 0, 0, 0.65)) contrast(1.04) saturate(1.06);
     }
     .store-card:hover .store-art-img {
-      transform: scale(1.09) translateY(-1px);
+      transform: scale(1.08) translateY(-1px);
     }
     .store-card.is-active .store-art-img {
       transform: scale(1.07);
-      filter: drop-shadow(0 6px 12px rgba(34, 211, 238, 0.35));
+      filter: drop-shadow(0 7px 12px rgba(34, 211, 238, 0.32)) contrast(1.05) saturate(1.08);
     }
   </style>
 </head>
 <body class="min-h-screen selection:bg-cyan-400 selection:text-slate-950">
 
   <!-- Top Navigation & Controls -->
-  <header class="bg-slate-900/95 border-b border-slate-800/90 sticky top-0 z-30 backdrop-blur-md">
+  <header class="bg-slate-900/90 border-b border-slate-800/80 sticky top-0 z-30 backdrop-blur-md">
     <div class="max-w-7xl mx-auto px-4 py-3.5 space-y-3">
       <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div class="flex items-center gap-3">
@@ -135,7 +150,6 @@
       { id: 3, label: "3★ (-20%)", short: "3★", reduction: 0.20 }
     ];
 
-    // Exact [col (0..6), row (0..2)] cell positions in the 7x3 Commercial Stores Directory
     const STORES = [
       // ==================== YEAR-ROUND (14) ====================
       {
@@ -466,13 +480,11 @@
       const W = dirImg.naturalWidth;
       const H = dirImg.naturalHeight;
 
-      // Exact normalized grid boundaries for the 7 columns x 3 rows in stores-directory.png
       const colEdges = [0.025, 0.161, 0.296, 0.432, 0.568, 0.704, 0.839, 0.975];
-      // Each row's [top, bottom] slices ONLY the isometric building artwork and excludes the text label pill below it
       const rowBands = [
-        [0.195, 0.378], // Row 0
-        [0.455, 0.638], // Row 1
-        [0.715, 0.898]  // Row 2
+        [0.195, 0.378],
+        [0.455, 0.638],
+        [0.715, 0.898]
       ];
 
       STORES.forEach(store => {
@@ -491,7 +503,6 @@
         try {
           croppedStoreUrls[store.id] = canvas.toDataURL("image/png");
         } catch (e) {
-          // Fallback if browser blocks toDataURL on local file:// protocol
           croppedStoreUrls[store.id] = null;
         }
       });
@@ -505,14 +516,14 @@
       const dataUrl = croppedStoreUrls[store.id];
       if (dataUrl) {
         return `
-          <div class="store-art-frame ${sizeClass} rounded-xl border border-slate-700/70 shrink-0 shadow-inner">
+          <div class="store-art-frame ${sizeClass} rounded-xl border border-slate-700/60 shrink-0">
             <img src="${dataUrl}" alt="${store.name}" class="store-art-img" />
           </div>
         `;
       }
       const initials = store.name.split(" ").slice(0, 2).map(w => w[0]).join("");
       return `
-        <div class="store-art-frame ${sizeClass} rounded-xl border border-slate-700/70 shrink-0 font-extrabold text-cyan-300 text-sm tracking-tight">
+        <div class="store-art-frame ${sizeClass} rounded-xl border border-slate-700/60 shrink-0 font-extrabold text-cyan-300 text-sm tracking-tight">
           ${initials}
         </div>
       `;
@@ -638,20 +649,21 @@
           : store.items.length;
 
         return `
-          <button onclick="selectStore('${store.id}')" class="store-card ${isSelected ? "is-active" : ""} group w-full text-left p-2.5 rounded-2xl border transition-all duration-200 flex items-center gap-3 ${
+          <button onclick="selectStore('${store.id}')" class="store-card ${isSelected ? "is-active" : ""} group relative overflow-hidden w-full text-left px-3 py-2.5 rounded-2xl border transition-all duration-200 flex items-center gap-3.5 ${
             isSelected
-              ? "bg-gradient-to-r from-slate-800 via-slate-800/95 to-cyan-950/40 border-cyan-400/90 shadow-lg shadow-cyan-500/10"
+              ? "bg-gradient-to-r from-slate-800/95 via-slate-900 to-cyan-950/35 border-cyan-400/75 shadow-lg shadow-cyan-950/50"
               : q && matchCount > 0
-              ? "bg-slate-900 border-emerald-500/40 hover:border-emerald-400"
-              : "bg-slate-900/80 border-slate-800/90 hover:bg-slate-800/60 hover:border-slate-700"
+              ? "bg-slate-900/90 border-emerald-500/40 hover:border-emerald-400"
+              : "bg-slate-900/65 border-slate-800/75 hover:bg-slate-800/55 hover:border-slate-700/80"
           }">
+            ${isSelected ? `<span class="absolute left-0 top-2.5 bottom-2.5 w-1 rounded-r-full bg-cyan-400"></span>` : ""}
             ${renderStoreArtwork(store, "w-16 h-14")}
             <div class="min-w-0 flex-1">
-              <div class="flex items-center justify-between gap-1.5">
-                <span class="font-bold text-xs sm:text-sm text-white truncate group-hover:text-cyan-200 transition">${store.name}</span>
-                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-slate-950/90 border border-slate-800 text-slate-300 shrink-0">Lv.${store.unlockLv}</span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-xs sm:text-[13.5px] tracking-tight text-slate-100 truncate group-hover:text-cyan-200 transition">${store.name}</span>
+                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-slate-950/85 border border-slate-800/90 text-slate-300 shrink-0">Lv.${store.unlockLv}</span>
               </div>
-              <div class="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
+              <div class="flex items-center justify-between text-[11px] text-slate-400 mt-1">
                 <span class="truncate">${store.group}</span>
                 <span class="${q && matchCount > 0 ? "text-emerald-400 font-semibold" : "text-slate-400"}">
                   ${q ? `${matchCount} match${matchCount === 1 ? "" : "es"}` : `${store.items.length} items`}
@@ -684,7 +696,7 @@
         const scopeNote = includeIngredients ? "Item Names + Ingredients" : "Item Names Only";
 
         bannerEl.innerHTML = `
-          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-2">
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-2">
             <div>
               <span class="text-[11px] uppercase tracking-wider font-semibold text-emerald-400">Search (${scopeNote} • ${activeGroup})</span>
               <h2 class="text-xl font-bold text-white">Matches for "${searchQuery.replace(/</g, "&lt;")}"</h2>
@@ -700,7 +712,7 @@
         displayEntries = store.items.map(item => ({ item, store }));
 
         bannerEl.innerHTML = `
-          <div class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/30 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+          <div class="relative overflow-hidden bg-gradient-to-br from-slate-900/95 via-slate-900 to-cyan-950/25 border border-slate-800/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
             <div class="flex items-center gap-4">
               ${renderStoreArtwork(store, "w-24 h-20 sm:w-28 sm:h-24")}
               <div>
@@ -761,8 +773,8 @@
         }).join("");
 
         return `
-          <div onclick="toggleItem('${itemKey.replace(/'/g, "\\'")}')" class="cursor-pointer bg-slate-900 hover:bg-slate-800/85 border ${
-            isOpen ? "border-cyan-400" : "border-slate-800"
+          <div onclick="toggleItem('${itemKey.replace(/'/g, "\\'")}')" class="cursor-pointer bg-slate-900/90 hover:bg-slate-800/80 border ${
+            isOpen ? "border-cyan-400" : "border-slate-800/90"
           } rounded-2xl p-4 transition select-none">
             <div class="flex items-start justify-between gap-2">
               <div>
