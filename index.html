@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SimCity BuildIt — Interactive Store &amp; Item Explorer (v1.6)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #090e1a;
+      color: #f8fafc;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Custom Scrollbar for Store Sidebar */
+    .store-scroll::-webkit-scrollbar { width: 5px; }
+    .store-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); border-radius: 999px; }
+    .store-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 999px; }
+    .store-scroll::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* Isometric Building Showcase Frame */
+    .store-art-frame {
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 48%, rgba(56, 189, 248, 0.18), rgba(15, 23, 42, 0.94) 74%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .store-art-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 3px;
+      transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), filter 0.25s ease;
+      filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.55));
+    }
+    .store-card:hover .store-art-img {
+      transform: scale(1.09) translateY(-1px);
+    }
+    .store-card.is-active .store-art-img {
+      transform: scale(1.07);
+      filter: drop-shadow(0 6px 12px rgba(34, 211, 238, 0.35));
+    }
+  </style>
+</head>
+<body class="min-h-screen selection:bg-cyan-400 selection:text-slate-950">
+
+  <!-- Top Navigation & Controls -->
+  <header class="bg-slate-900/95 border-b border-slate-800/90 sticky top-0 z-30 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 py-3.5 space-y-3">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-slate-950 font-black text-base">
+            SC
+          </div>
+          <div>
+            <h1 class="text-base sm:text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+              SimCity BuildIt — Store &amp; Item Explorer
+            </h1>
+            <p class="text-xs text-slate-400">All 21 Commercial Buildings • Click a store to inspect recipes &amp; star-level times</p>
+          </div>
+        </div>
+
+        <!-- Global Store Star Level Toggle -->
+        <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 self-start md:self-auto" id="starPills"></div>
+      </div>
+
+      <!-- Search Bar + Include Ingredients Checkbox + Category Filter -->
+      <div class="flex flex-col lg:flex-row lg:items-center gap-2.5">
+        <div class="flex flex-wrap items-center gap-2 flex-1">
+          <div class="relative flex-1 min-w-[210px] max-w-md">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              id="searchInput"
+              oninput="handleSearch(this.value)"
+              placeholder="Search item name (e.g. Ice Cream, Donuts)..."
+              class="w-full bg-slate-950 border border-slate-700/90 focus:border-cyan-400 rounded-xl pl-9 pr-8 py-1.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none transition"
+            />
+            <button
+              id="clearSearchBtn"
+              onclick="clearSearch()"
+              class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs font-bold px-1"
+              title="Clear search"
+            >✕</button>
+          </div>
+
+          <!-- Include Ingredients Checkbox -->
+          <label class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 cursor-pointer select-none text-xs text-slate-300 transition">
+            <input
+              type="checkbox"
+              id="includeIngredientsCb"
+              onchange="toggleIngredientsSearch(this.checked)"
+              class="w-3.5 h-3.5 rounded accent-cyan-400 cursor-pointer"
+            />
+            <span>Include ingredients</span>
+          </label>
+        </div>
+
+        <div id="groupPills" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="max-w-7xl mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+    <!-- Left Sidebar: Visual Store Selector -->
+    <aside class="lg:col-span-4 space-y-2.5">
+      <div class="flex items-center justify-between px-1">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Commercial Stores</span>
+        <span id="storeCount" class="text-xs text-slate-500 font-medium"></span>
+      </div>
+      <div id="storeList" class="store-scroll grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2.5 max-h-[76vh] overflow-y-auto pr-1"></div>
+    </aside>
+
+    <!-- Right Shelf: Store Hero Banner + Producible Items -->
+    <section class="lg:col-span-8">
+      <div id="selectedStoreBanner" class="mb-4"></div>
+      <div id="itemGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+    </section>
+
+  </main>
+
+  <script>
+    const STAR_LEVELS = [
+      { id: 0, label: "Base (0★)", short: "0★", reduction: 0.00 },
+      { id: 1, label: "1★ (-10%)", short: "1★", reduction: 0.10 },
+      { id: 2, label: "2★ (-15%)", short: "2★", reduction: 0.15 },
+      { id: 3, label: "3★ (-20%)", short: "3★", reduction: 0.20 }
+    ];
+
+    // Exact [col (0..6), row (0..2)] cell positions in the 7x3 Commercial Stores Directory
+    const STORES = [
+      // ==================== YEAR-ROUND (14) ====================
+      {
+        id: "building-supplies",
+        name: "Building Supplies Store",
+        group: "Year-Round",
+        unlockLv: 1,
+        buildCost: "100 §",
+        sprite: [0, 0],
+        items: [
+          { name: "Nails", lv: 1, price: 80, mins: 5, mats: "2 Metal" },
+          { name: "Planks", lv: 3, price: 120, mins: 30, mats: "2 Wood" },
+          { name: "Bricks", lv: 13, price: 190, mins: 20, mats: "2 Minerals" },
+          { name: "Cement", lv: 14, price: 440, mins: 50, mats: "2 Minerals, 1 Chemical" },
+          { name: "Glue", lv: 15, price: 440, mins: 60, mats: "1 Plastic, 2 Chemicals" },
+          { name: "Paint", lv: 16, price: 320, mins: 60, mats: "2 Metal, 1 Mineral, 2 Chemicals" }
+        ]
+      },
+      {
+        id: "hardware",
+        name: "Hardware Store",
+        group: "Year-Round",
+        unlockLv: 4,
+        buildCost: "2,500 §",
+        sprite: [0, 2],
+        items: [
+          { name: "Hammer", lv: 4, price: 90, mins: 14, mats: "1 Metal, 1 Wood" },
+          { name: "Measuring Tape", lv: 6, price: 110, mins: 20, mats: "1 Metal, 1 Plastic" },
+          { name: "Shovel", lv: 9, price: 150, mins: 30, mats: "1 Metal, 1 Wood, 1 Plastic" },
+          { name: "Cooking Utensils", lv: 17, price: 250, mins: 45, mats: "2 Metal, 2 Plastic, 2 Wood" },
+          { name: "Ladder", lv: 20, price: 420, mins: 60, mats: "2 Planks, 2 Metal" },
+          { name: "Drill", lv: 30, price: 590, mins: 120, mats: "2 Metal, 2 Plastic, 1 Electrical Comp." }
+        ]
+      },
+      {
+        id: "farmers-market",
+        name: "Farmer's Market",
+        group: "Year-Round",
+        unlockLv: 8,
+        buildCost: "5,000 §",
+        sprite: [1, 1],
+        items: [
+          { name: "Vegetables", lv: 8, price: 160, mins: 20, mats: "2 Seeds" },
+          { name: "Flour Bag", lv: 17, price: 570, mins: 30, mats: "2 Seeds, 2 Textiles" },
+          { name: "Fruit and Berries", lv: 18, price: 730, mins: 90, mats: "2 Seeds, 1 Tree Sapling" },
+          { name: "Cream", lv: 23, price: 440, mins: 75, mats: "1 Animal Feed" },
+          { name: "Corn", lv: 24, price: 280, mins: 60, mats: "1 Mineral, 4 Seeds" },
+          { name: "Cheese", lv: 26, price: 660, mins: 105, mats: "2 Animal Feed" },
+          { name: "Beef", lv: 27, price: 860, mins: 150, mats: "3 Animal Feed" }
+        ]
+      },
+      {
+        id: "furniture",
+        name: "Furniture Store",
+        group: "Year-Round",
+        unlockLv: 10,
+        buildCost: "8,000 §",
+        sprite: [5, 1],
+        items: [
+          { name: "Chairs", lv: 10, price: 300, mins: 20, mats: "2 Wood, 1 Nail, 1 Hammer" },
+          { name: "Tables", lv: 16, price: 500, mins: 30, mats: "1 Plank, 2 Nails, 1 Hammer" },
+          { name: "Home Textiles", lv: 25, price: 610, mins: 75, mats: "2 Textiles, 1 Measuring Tape" },
+          { name: "Cupboard", lv: 26, price: 900, mins: 45, mats: "2 Glass, 2 Planks, 1 Paint" },
+          { name: "Couch", lv: 33, price: 1810, mins: 150, mats: "3 Textiles, 1 Drill, 1 Glue" }
+        ]
+      },
+      {
+        id: "gardening",
+        name: "Gardening Supplies",
+        group: "Year-Round",
+        unlockLv: 14,
+        buildCost: "13,000 §",
+        sprite: [6, 1],
+        items: [
+          { name: "Grass", lv: 14, price: 310, mins: 30, mats: "1 Seed, 1 Shovel" },
+          { name: "Tree Saplings", lv: 16, price: 420, mins: 90, mats: "2 Seeds, 1 Shovel" },
+          { name: "Garden Furniture", lv: 21, price: 820, mins: 135, mats: "2 Planks, 2 Plastic, 2 Textiles" },
+          { name: "Fire Pit", lv: 28, price: 1740, mins: 240, mats: "2 Bricks, 1 Shovel, 2 Cement" },
+          { name: "Lawn Mower", lv: 30, price: 840, mins: 120, mats: "3 Metal, 1 Paint, 1 Electrical Comp." },
+          { name: "Garden Gnomes", lv: 34, price: 1600, mins: 90, mats: "2 Cement, 1 Glue" }
+        ]
+      },
+      {
+        id: "donut-shop",
+        name: "Donut Shop",
+        group: "Year-Round",
+        unlockLv: 18,
+        buildCost: "17,000 §",
+        sprite: [6, 0],
+        items: [
+          { name: "Donuts", lv: 18, price: 950, mins: 45, mats: "1 Flour Bag, 1 Sugar & Spices" },
+          { name: "Green Smoothie", lv: 20, price: 1150, mins: 30, mats: "1 Fruit & Berries, 1 Vegetables (Verify 1 vs 2 Veg)" },
+          { name: "Bread Roll", lv: 25, price: 1840, mins: 60, mats: "2 Flour Bags, 1 Cream" },
+          { name: "Cherry Cheesecake", lv: 27, price: 2240, mins: 90, mats: "1 Flour Bag, 1 Fruit & Berries, 1 Cheese" },
+          { name: "Frozen Yogurt", lv: 28, price: 1750, mins: 240, mats: "1 Fruit & Berries, 1 Cream, 1 Sugar & Spices" },
+          { name: "Coffee (Requires 1★)", lv: 33, price: 750, mins: 60, mats: "1 Cream, 2 Seeds, 1 Sugar & Spices" }
+        ]
+      },
+      {
+        id: "fashion-store",
+        name: "Fashion Store",
+        group: "Year-Round",
+        unlockLv: 19,
+        buildCost: "22,000 §",
+        sprite: [2, 1],
+        items: [
+          { name: "Cap", lv: 19, price: 600, mins: 60, mats: "2 Textiles, 1 Measuring Tape" },
+          { name: "Shoes", lv: 21, price: 980, mins: 75, mats: "2 Textiles, 1 Plastic, 1 Glue" },
+          { name: "Watch", lv: 22, price: 580, mins: 90, mats: "2 Plastic, 1 Glass, 1 Chemical" },
+          { name: "Business Suits", lv: 32, price: 1170, mins: 210, mats: "3 Textiles, 1 Measuring Tape, 1 Glue" },
+          { name: "Backpack", lv: 34, price: 430, mins: 150, mats: "2 Textiles, 2 Plastic, 1 Measuring Tape" }
+        ]
+      },
+      {
+        id: "fast-food",
+        name: "Fast Food Restaurant",
+        group: "Year-Round",
+        unlockLv: 25,
+        buildCost: "25,000 §",
+        sprite: [3, 1],
+        items: [
+          { name: "Ice Cream Sandwich", lv: 25, price: 2560, mins: 14, mats: "1 Bread Roll, 1 Cream" },
+          { name: "Pizza", lv: 28, price: 2560, mins: 24, mats: "1 Flour Bag, 1 Cheese, 1 Beef" },
+          { name: "Burgers", lv: 31, price: 3620, mins: 35, mats: "1 Beef, 1 Bread Roll, 1 BBQ Grill" },
+          { name: "Cheese Fries", lv: 33, price: 1050, mins: 20, mats: "1 Vegetable, 1 Cheese" },
+          { name: "Lemonade Bottle", lv: 37, price: 1690, mins: 60, mats: "2 Glass, 2 Sugar & Spices, 1 Fruit & Berries" },
+          { name: "Popcorn", lv: 43, price: 1250, mins: 30, mats: "2 Corn, 1 Microwave Oven" }
+        ]
+      },
+      {
+        id: "home-appliances",
+        name: "Home Appliances",
+        group: "Year-Round",
+        unlockLv: 29,
+        buildCost: "30,000 §",
+        sprite: [1, 2],
+        items: [
+          { name: "BBQ Grill", lv: 29, price: 530, mins: 165, mats: "3 Metal, 1 Cooking Utensils" },
+          { name: "Refrigerator", lv: 35, price: 1060, mins: 210, mats: "2 Plastic, 2 Chemicals, 2 Electrical Comp." },
+          { name: "Lighting System", lv: 36, price: 890, mins: 105, mats: "1 Chemical, 1 Electrical Comp., 1 Glass" },
+          { name: "TV", lv: 38, price: 1280, mins: 150, mats: "2 Plastic, 2 Glass, 2 Electrical Comp." },
+          { name: "Microwave Oven", lv: 42, price: 480, mins: 120, mats: "4 Metal, 2 Glass, 1 Electrical Comp." }
+        ]
+      },
+      {
+        id: "sports-shop",
+        name: "Sports Shop",
+        group: "Year-Round",
+        unlockLv: 35,
+        buildCost: "80,000 §",
+        sprite: [4, 2],
+        items: [
+          { name: "Tennis Racket", lv: 35, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Sports Drink", lv: 35, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Football Shoes", lv: 35, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Protein Bar", lv: 35, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Ping-Pong Table", lv: 35, price: 0, mins: 0, mats: "Verify stats in-game" }
+        ]
+      },
+      {
+        id: "toy-shop",
+        name: "Toy Shop",
+        group: "Year-Round",
+        unlockLv: 40,
+        buildCost: "100,000 §",
+        sprite: [5, 2],
+        items: [
+          { name: "Letter Blocks", lv: 40, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Kite", lv: 40, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Teddy Bear", lv: 40, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Game Console", lv: 40, price: 0, mins: 0, mats: "Verify stats in-game" }
+        ]
+      },
+      {
+        id: "restoration",
+        name: "Bureau of Restoration",
+        group: "Year-Round",
+        unlockLv: 45,
+        buildCost: "250,000 §",
+        sprite: [1, 0],
+        items: [
+          { name: "Wrought Iron", lv: 45, price: 560, mins: 30, mats: "4 Metal, 2 Hammer, 2 Chemicals" },
+          { name: "Carved Wood", lv: 54, price: 2800, mins: 60, mats: "5 Planks, 2 Measuring Tape, 2 Drill" },
+          { name: "Chiseled Stone", lv: 59, price: 2300, mins: 150, mats: "2 Hammer, 6 Minerals, 2 Drill" },
+          { name: "Tapestry", lv: 67, price: 2560, mins: 210, mats: "4 Textiles, 2 Paint, 2 Glue" },
+          { name: "Stained Glass", lv: 76, price: 2300, mins: 216, mats: "5 Metal, 6 Glass, 2 Glue" }
+        ]
+      },
+      {
+        id: "country-store",
+        name: "Country Store",
+        group: "Year-Round",
+        unlockLv: 50,
+        buildCost: "300,000 §",
+        sprite: [4, 0],
+        items: [
+          { name: "Wool Shirt", lv: 50, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Picnic Basket", lv: 50, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Apple Jam", lv: 50, price: 0, mins: 0, mats: "Verify stats in-game" }
+        ]
+      },
+      {
+        id: "dessert-shop",
+        name: "Dessert Shop",
+        group: "Year-Round",
+        unlockLv: 55,
+        buildCost: "350,000 §",
+        sprite: [5, 0],
+        items: [
+          { name: "Tiramisu", lv: 55, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Churros", lv: 55, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Profiterole", lv: 55, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Mochi", lv: 55, price: 0, mins: 0, mats: "Verify stats in-game" },
+          { name: "Pavlova", lv: 55, price: 0, mins: 0, mats: "Verify stats in-game" }
+        ]
+      },
+
+      // ==================== REGIONAL (5) ====================
+      {
+        id: "eco-shop",
+        name: "Eco Shop (Green Valley)",
+        group: "Regional",
+        unlockLv: 25,
+        buildCost: "13,000 §",
+        sprite: [0, 1],
+        items: [
+          { name: "Reusable Bag", lv: 25, price: 0, mins: 16, mats: "2 Recycled Fabric" },
+          { name: "Ecological Shoes", lv: 30, price: 0, mins: 90, mats: "2 Recycled Fabric, 1 Glue, 1 Measuring Tape" },
+          { name: "Yoga Mat", lv: 35, price: 0, mins: 180, mats: "3 Recycled Fabric, 2 Home Textiles, 1 Paint" }
+        ]
+      },
+      {
+        id: "tropical-store",
+        name: "Tropical Products Store (Sunny Isles)",
+        group: "Regional",
+        unlockLv: 25,
+        buildCost: "13,000 §",
+        sprite: [6, 2],
+        items: [
+          { name: "Coconut Oil", lv: 25, price: 0, mins: 16, mats: "2 Coconut" },
+          { name: "Face Cream", lv: 30, price: 0, mins: 90, mats: "2 Coconut Oil, 2 Chemicals" },
+          { name: "Tropical Drink", lv: 35, price: 0, mins: 180, mats: "2 Fruit & Berries, 2 Coconut, 1 Sugar & Spices" }
+        ]
+      },
+      {
+        id: "car-parts",
+        name: "Car Parts (Cactus Canyon)",
+        group: "Regional",
+        unlockLv: 25,
+        buildCost: "13,000 §",
+        sprite: [2, 0],
+        items: [
+          { name: "Motor Oil", lv: 25, price: 0, mins: 16, mats: "2 Crude Oil" },
+          { name: "Car Tire", lv: 30, price: 0, mins: 90, mats: "2 Crude Oil, 2 Glue, 3 Nails" },
+          { name: "Engine", lv: 35, price: 0, mins: 180, mats: "1 Electrical Comp., 1 Drill, 3 Nails" }
+        ]
+      },
+      {
+        id: "silk-store",
+        name: "Silk Store (Limestone Cliffs)",
+        group: "Regional",
+        unlockLv: 25,
+        buildCost: "13,000 §",
+        sprite: [3, 2],
+        items: [
+          { name: "String", lv: 25, price: 0, mins: 16, mats: "2 Silk" },
+          { name: "Fan", lv: 30, price: 0, mins: 90, mats: "2 Silk, 1 Wood, 2 Glue" },
+          { name: "Robe", lv: 35, price: 0, mins: 180, mats: "3 Silk, 2 Paint, 1 Home Textiles" }
+        ]
+      },
+      {
+        id: "fish-marketplace",
+        name: "Fish Marketplace (Frosty Fjords)",
+        group: "Regional",
+        unlockLv: 25,
+        buildCost: "13,000 §",
+        sprite: [4, 1],
+        items: [
+          { name: "Canned Fish", lv: 25, price: 120, mins: 20, mats: "1 Fish, 1 Metal" },
+          { name: "Fish Soup", lv: 30, price: 400, mins: 120, mats: "1 Vegetable, 2 Fish, 2 Cooking Utensils" },
+          { name: "Salmon Sandwich", lv: 35, price: 2200, mins: 180, mats: "1 Bread Roll, 2 Fish" }
+        ]
+      },
+
+      // ==================== SEASONAL (2) ====================
+      {
+        id: "santas-workshop",
+        name: "Santa's Workshop",
+        group: "Seasonal",
+        unlockLv: 6,
+        buildCost: "Free (Seasonal)",
+        sprite: [2, 2],
+        items: [
+          { name: "Toy Horse", lv: 6, price: 0, mins: 0, mats: "Winter Seasonal • Verify stats" },
+          { name: "Holiday Decorations", lv: 6, price: 0, mins: 0, mats: "Winter Seasonal • Verify stats" },
+          { name: "Candy Cane", lv: 6, price: 0, mins: 0, mats: "Winter Seasonal • Verify stats" },
+          { name: "Gingerbread Cookies", lv: 6, price: 0, mins: 0, mats: "Winter Seasonal • Verify stats" },
+          { name: "Holiday Ornament", lv: 6, price: 0, mins: 0, mats: "Winter Seasonal • Verify stats" }
+        ]
+      },
+      {
+        id: "chocolate-factory",
+        name: "Chocolate Factory",
+        group: "Seasonal",
+        unlockLv: 6,
+        buildCost: "Free (Seasonal)",
+        sprite: [3, 0],
+        items: [
+          { name: "Chocolate Bar", lv: 6, price: 0, mins: 0, mats: "Spring Seasonal • Verify stats" },
+          { name: "Chocolate Eggs", lv: 6, price: 0, mins: 0, mats: "Spring Seasonal • Verify stats" },
+          { name: "Fruit Jelly", lv: 6, price: 0, mins: 0, mats: "Spring Seasonal • Verify stats" },
+          { name: "Easter Basket", lv: 6, price: 0, mins: 0, mats: "Spring Seasonal • Verify stats" }
+        ]
+      }
+    ];
+
+    let activeStar = 0;
+    let activeGroup = "All";
+    let selectedStoreId = STORES[0].id;
+    let expandedItemKey = null;
+    let searchQuery = "";
+    let includeIngredients = false;
+    const croppedStoreUrls = {};
+
+    // Slice exact building artwork from the 7x3 directory image using an offscreen Canvas
+    const dirImg = new Image();
+    dirImg.onload = () => {
+      const W = dirImg.naturalWidth;
+      const H = dirImg.naturalHeight;
+
+      // Exact normalized grid boundaries for the 7 columns x 3 rows in stores-directory.png
+      const colEdges = [0.025, 0.161, 0.296, 0.432, 0.568, 0.704, 0.839, 0.975];
+      // Each row's [top, bottom] slices ONLY the isometric building artwork and excludes the text label pill below it
+      const rowBands = [
+        [0.195, 0.378], // Row 0
+        [0.455, 0.638], // Row 1
+        [0.715, 0.898]  // Row 2
+      ];
+
+      STORES.forEach(store => {
+        const [c, r] = store.sprite;
+        const sx = Math.round(colEdges[c] * W);
+        const sw = Math.round((colEdges[c + 1] - colEdges[c]) * W);
+        const sy = Math.round(rowBands[r][0] * H);
+        const sh = Math.round((rowBands[r][1] - rowBands[r][0]) * H);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = sw;
+        canvas.height = sh;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(dirImg, sx, sy, sw, sh, 0, 0, sw, sh);
+
+        try {
+          croppedStoreUrls[store.id] = canvas.toDataURL("image/png");
+        } catch (e) {
+          // Fallback if browser blocks toDataURL on local file:// protocol
+          croppedStoreUrls[store.id] = null;
+        }
+      });
+
+      renderStores();
+      renderItems();
+    };
+    dirImg.src = "stores-directory.png";
+
+    function renderStoreArtwork(store, sizeClass = "w-16 h-14") {
+      const dataUrl = croppedStoreUrls[store.id];
+      if (dataUrl) {
+        return `
+          <div class="store-art-frame ${sizeClass} rounded-xl border border-slate-700/70 shrink-0 shadow-inner">
+            <img src="${dataUrl}" alt="${store.name}" class="store-art-img" />
+          </div>
+        `;
+      }
+      const initials = store.name.split(" ").slice(0, 2).map(w => w[0]).join("");
+      return `
+        <div class="store-art-frame ${sizeClass} rounded-xl border border-slate-700/70 shrink-0 font-extrabold text-cyan-300 text-sm tracking-tight">
+          ${initials}
+        </div>
+      `;
+    }
+
+    function formatDuration(baseMins, reduction) {
+      if (!baseMins || baseMins <= 0) return "—";
+      const totalSeconds = Math.round(baseMins * (1 - reduction) * 60);
+      const hrs = Math.floor(totalSeconds / 3600);
+      const mins = Math.floor((totalSeconds % 3600) / 60);
+      const secs = totalSeconds % 60;
+
+      if (hrs > 0) {
+        return secs > 0 ? `${hrs}h ${mins}m ${secs}s` : (mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`);
+      }
+      return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+    }
+
+    function getAdjustedMins(baseMins, reduction) {
+      return baseMins * (1 - reduction);
+    }
+
+    function itemMatches(item, q) {
+      if (item.name.toLowerCase().includes(q)) return true;
+      if (includeIngredients && item.mats.toLowerCase().includes(q)) return true;
+      return false;
+    }
+
+    function handleSearch(val) {
+      searchQuery = val.trim();
+      document.getElementById("clearSearchBtn").classList.toggle("hidden", searchQuery.length === 0);
+      renderStores();
+      renderItems();
+    }
+
+    function toggleIngredientsSearch(checked) {
+      includeIngredients = checked;
+      const input = document.getElementById("searchInput");
+      input.placeholder = checked
+        ? "Search item or ingredient (e.g. Glue, Flour)..."
+        : "Search item name (e.g. Ice Cream, Donuts)...";
+      if (searchQuery) {
+        renderStores();
+        renderItems();
+      }
+    }
+
+    function clearSearch() {
+      const input = document.getElementById("searchInput");
+      input.value = "";
+      searchQuery = "";
+      document.getElementById("clearSearchBtn").classList.add("hidden");
+      renderStores();
+      renderItems();
+    }
+
+    function renderStarPills() {
+      document.getElementById("starPills").innerHTML = STAR_LEVELS.map(st => {
+        const active = st.id === activeStar;
+        return `<button onclick="selectStar(${st.id})" class="px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+          active ? "bg-amber-400 text-slate-950 shadow" : "text-slate-300 hover:text-white"
+        }">${st.label}</button>`;
+      }).join("");
+    }
+
+    function selectStar(starId) {
+      activeStar = starId;
+      renderStarPills();
+      renderItems();
+    }
+
+    function getVisibleStores() {
+      return activeGroup === "All" ? STORES : STORES.filter(s => s.group === activeGroup);
+    }
+
+    function renderGroupPills() {
+      const groups = ["All", "Year-Round", "Regional", "Seasonal"];
+      document.getElementById("groupPills").innerHTML = groups.map(g => {
+        const active = g === activeGroup;
+        return `<button onclick="selectGroup('${g}')" class="px-3 py-1 rounded-full text-xs font-medium border shrink-0 transition ${
+          active ? "bg-cyan-400 text-slate-950 border-cyan-300 font-semibold" : "bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500"
+        }">${g}</button>`;
+      }).join("");
+    }
+
+    function selectGroup(group) {
+      activeGroup = group;
+      const visible = getVisibleStores();
+      if (!visible.some(s => s.id === selectedStoreId) && visible.length) {
+        selectedStoreId = visible[0].id;
+      }
+      expandedItemKey = null;
+      renderGroupPills();
+      renderStores();
+      renderItems();
+    }
+
+    function selectStore(id) {
+      selectedStoreId = id;
+      expandedItemKey = null;
+      if (searchQuery) {
+        clearSearch();
+      } else {
+        renderStores();
+        renderItems();
+      }
+    }
+
+    function toggleItem(key) {
+      expandedItemKey = expandedItemKey === key ? null : key;
+      renderItems();
+    }
+
+    function renderStores() {
+      const visible = getVisibleStores();
+      const q = searchQuery.toLowerCase();
+      document.getElementById("storeCount").textContent = `${visible.length} shops`;
+
+      document.getElementById("storeList").innerHTML = visible.map(store => {
+        const isSelected = !q && store.id === selectedStoreId;
+        const matchCount = q
+          ? store.items.filter(it => itemMatches(it, q)).length
+          : store.items.length;
+
+        return `
+          <button onclick="selectStore('${store.id}')" class="store-card ${isSelected ? "is-active" : ""} group w-full text-left p-2.5 rounded-2xl border transition-all duration-200 flex items-center gap-3 ${
+            isSelected
+              ? "bg-gradient-to-r from-slate-800 via-slate-800/95 to-cyan-950/40 border-cyan-400/90 shadow-lg shadow-cyan-500/10"
+              : q && matchCount > 0
+              ? "bg-slate-900 border-emerald-500/40 hover:border-emerald-400"
+              : "bg-slate-900/80 border-slate-800/90 hover:bg-slate-800/60 hover:border-slate-700"
+          }">
+            ${renderStoreArtwork(store, "w-16 h-14")}
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-1.5">
+                <span class="font-bold text-xs sm:text-sm text-white truncate group-hover:text-cyan-200 transition">${store.name}</span>
+                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-slate-950/90 border border-slate-800 text-slate-300 shrink-0">Lv.${store.unlockLv}</span>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
+                <span class="truncate">${store.group}</span>
+                <span class="${q && matchCount > 0 ? "text-emerald-400 font-semibold" : "text-slate-400"}">
+                  ${q ? `${matchCount} match${matchCount === 1 ? "" : "es"}` : `${store.items.length} items`}
+                </span>
+              </div>
+            </div>
+          </button>
+        `;
+      }).join("");
+    }
+
+    function renderItems() {
+      const currentStarObj = STAR_LEVELS.find(s => s.id === activeStar);
+      const q = searchQuery.toLowerCase();
+      const bannerEl = document.getElementById("selectedStoreBanner");
+      const gridEl = document.getElementById("itemGrid");
+
+      let displayEntries = [];
+
+      if (q) {
+        const visibleStores = getVisibleStores();
+        visibleStores.forEach(st => {
+          st.items.forEach(item => {
+            if (itemMatches(item, q)) {
+              displayEntries.push({ item, store: st });
+            }
+          });
+        });
+
+        const scopeNote = includeIngredients ? "Item Names + Ingredients" : "Item Names Only";
+
+        bannerEl.innerHTML = `
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="text-[11px] uppercase tracking-wider font-semibold text-emerald-400">Search (${scopeNote} • ${activeGroup})</span>
+              <h2 class="text-xl font-bold text-white">Matches for "${searchQuery.replace(/</g, "&lt;")}"</h2>
+            </div>
+            <div class="flex items-center gap-3 text-xs text-slate-400">
+              <span>${displayEntries.length} item${displayEntries.length === 1 ? "" : "s"} found</span>
+              <button onclick="clearSearch()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition">Reset</button>
+            </div>
+          </div>
+        `;
+      } else {
+        const store = STORES.find(s => s.id === selectedStoreId) || STORES[0];
+        displayEntries = store.items.map(item => ({ item, store }));
+
+        bannerEl.innerHTML = `
+          <div class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/30 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+            <div class="flex items-center gap-4">
+              ${renderStoreArtwork(store, "w-24 h-20 sm:w-28 sm:h-24")}
+              <div>
+                <div class="flex flex-wrap items-center gap-2 mb-1">
+                  <span class="text-[11px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">${store.group}</span>
+                  <span class="text-xs font-mono text-slate-400">Unlock Lv.${store.unlockLv}</span>
+                </div>
+                <h2 class="text-xl sm:text-2xl font-extrabold text-white tracking-tight">${store.name}</h2>
+                <p class="text-xs text-slate-400 mt-1">Build Cost: <span class="text-amber-300 font-semibold">${store.buildCost}</span> • ${store.items.length} producible items</p>
+              </div>
+            </div>
+            <div class="sm:text-right bg-slate-950/75 border border-slate-800/90 rounded-xl px-3.5 py-2.5 shrink-0">
+              <span class="block text-[10px] uppercase tracking-wider text-slate-500">Active Speed Tier</span>
+              <span class="text-sm font-bold text-amber-300">${currentStarObj.label}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      if (displayEntries.length === 0) {
+        gridEl.innerHTML = `
+          <div class="col-span-full bg-slate-900/70 border border-slate-800 rounded-2xl p-8 text-center">
+            <p class="text-slate-300 font-medium">No ${includeIngredients ? "items or ingredients" : "item names"} matched "${searchQuery.replace(/</g, "&lt;")}".</p>
+            <p class="text-xs text-slate-500 mt-1">${includeIngredients ? "Try another keyword or switch category filter above." : "Try checking 'Include ingredients' if you're searching for a material."}</p>
+          </div>
+        `;
+        return;
+      }
+
+      gridEl.innerHTML = displayEntries.map(({ item, store }) => {
+        const itemKey = `${store.id}::${item.name}`;
+        const isOpen = expandedItemKey === itemKey;
+        const hasTime = item.mins > 0;
+        const hasStats = item.price > 0 && hasTime;
+
+        const adjMins = getAdjustedMins(item.mins, currentStarObj.reduction);
+        const rateText = hasStats ? `§${(item.price / adjMins).toFixed(2)}/m` : "Needs check";
+        const timeText = formatDuration(item.mins, currentStarObj.reduction);
+        const priceText = item.price > 0 ? `§${item.price.toLocaleString()}` : "—";
+
+        const starBreakdownHtml = STAR_LEVELS.map(st => {
+          const isCurrent = st.id === activeStar;
+          const stTime = formatDuration(item.mins, st.reduction);
+          const stMins = getAdjustedMins(item.mins, st.reduction);
+          const stRate = hasStats ? `§${(item.price / stMins).toFixed(2)}/m` : "—";
+
+          return `
+            <div class="rounded-lg p-2 text-center border ${
+              isCurrent
+                ? "bg-amber-500/15 border-amber-400/60"
+                : "bg-slate-950/80 border-slate-800"
+            }">
+              <div class="text-[10px] font-semibold ${isCurrent ? "text-amber-300" : "text-slate-400"}">${st.short}</div>
+              <div class="font-mono text-xs font-bold text-white mt-0.5">${stTime}</div>
+              <div class="font-mono text-[10px] text-emerald-400 mt-0.5">${stRate}</div>
+            </div>
+          `;
+        }).join("");
+
+        return `
+          <div onclick="toggleItem('${itemKey.replace(/'/g, "\\'")}')" class="cursor-pointer bg-slate-900 hover:bg-slate-800/85 border ${
+            isOpen ? "border-cyan-400" : "border-slate-800"
+          } rounded-2xl p-4 transition select-none">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h3 class="font-bold text-white text-base">${item.name}</h3>
+                <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
+                  <span class="text-[11px] text-slate-400">Unlock Lv.${item.lv}</span>
+                  ${q ? `<button onclick="event.stopPropagation(); selectStore('${store.id}')" class="text-[10px] font-semibold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 transition">${store.name}</button>` : ""}
+                </div>
+              </div>
+              <span class="font-mono text-xs font-bold px-2.5 py-1 rounded-lg ${
+                hasStats ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" : "bg-slate-800 text-amber-300 border border-amber-500/30"
+              }">${rateText}</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mt-3 text-xs">
+              <div class="bg-slate-950/70 rounded-xl px-3 py-2">
+                <span class="text-slate-500 block text-[10px]">Max Price</span>
+                <span class="font-mono font-semibold text-amber-300">${priceText}</span>
+              </div>
+              <div class="bg-slate-950/70 rounded-xl px-3 py-2">
+                <span class="text-slate-500 block text-[10px]">Time (${currentStarObj.short})</span>
+                <span class="font-mono font-semibold text-slate-200">${timeText}</span>
+              </div>
+            </div>
+
+            ${isOpen ? `
+              <div class="mt-3 pt-3 border-t border-slate-800 space-y-2.5">
+                <div class="text-xs text-slate-300">
+                  <span class="text-slate-500">Materials:</span> ${item.mats}
+                </div>
+                <div>
+                  <span class="block text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">Production Time &amp; Rate by Star Level</span>
+                  <div class="grid grid-cols-4 gap-1.5">
+                    ${starBreakdownHtml}
+                  </div>
+                </div>
+              </div>
+            ` : ""}
+          </div>
+        `;
+      }).join("");
+    }
+
+    renderStarPills();
+    renderGroupPills();
+    renderStores();
+    renderItems();
+  </script>
+</body>
+</html>
