@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SimCity BuildIt — Interactive Store &amp; Item Explorer (v1.7)</title>
+  <title>SimCity BuildIt — Interactive Store &amp; Item Explorer (v1.8)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -20,44 +20,74 @@
     .store-scroll::-webkit-scrollbar-thumb { background: #263349; border-radius: 999px; }
     .store-scroll::-webkit-scrollbar-thumb:hover { background: #3b4f70; }
 
-    /* Sleek Studio Spotlight Frame (removes harsh boxed-in crop look) */
-    .store-art-frame {
+    /* Seamless Store Artwork Presentation */
+    .store-art-wrap {
       position: relative;
-      overflow: hidden;
-      background:
-        radial-gradient(circle at 50% 52%, rgba(56, 189, 248, 0.16), rgba(15, 23, 42, 0.25) 58%, rgba(7, 11, 20, 0.88) 100%);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 12px rgba(0, 0, 0, 0.35);
       display: flex;
       align-items: center;
       justify-content: center;
-    }
-    .store-art-frame::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      box-shadow: inset 0 0 10px 3px rgba(7, 11, 20, 0.55);
-      pointer-events: none;
-    }
-    .store-card.is-active .store-art-frame {
-      background:
-        radial-gradient(circle at 50% 52%, rgba(34, 211, 238, 0.26), rgba(14, 116, 144, 0.14) 60%, rgba(7, 11, 20, 0.85) 100%);
-      box-shadow: inset 0 1px 0 rgba(165, 243, 252, 0.2), 0 0 18px rgba(34, 211, 238, 0.16);
+      flex-shrink: 0;
     }
     .store-art-img {
       width: 100%;
       height: 100%;
       object-fit: contain;
-      padding: 4px;
       transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), filter 0.25s ease;
-      filter: drop-shadow(0 6px 9px rgba(0, 0, 0, 0.65)) contrast(1.04) saturate(1.06);
+      filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.65));
     }
     .store-card:hover .store-art-img {
-      transform: scale(1.08) translateY(-1px);
+      transform: scale(1.07) translateY(-2px);
     }
     .store-card.is-active .store-art-img {
-      transform: scale(1.07);
-      filter: drop-shadow(0 7px 12px rgba(34, 211, 238, 0.32)) contrast(1.05) saturate(1.08);
+      transform: scale(1.06);
+      filter: drop-shadow(0 10px 18px rgba(34, 211, 238, 0.28));
+    }
+    .store-fallback-badge {
+      width: 100%;
+      height: 100%;
+      border-radius: 0.875rem;
+      background: radial-gradient(circle at 50% 45%, rgba(56, 189, 248, 0.16), rgba(15, 23, 42, 0.92) 75%);
+      border: 1px solid rgba(51, 65, 85, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: #67e8f9;
+      letter-spacing: -0.02em;
+    }
+
+    /* Item Artwork Presentation */
+    .item-art-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border-radius: 0.75rem;
+      background: radial-gradient(circle at 50% 45%, rgba(148, 163, 184, 0.12), rgba(2, 6, 23, 0.85) 80%);
+      border: 1px solid rgba(30, 41, 59, 0.9);
+      overflow: hidden;
+    }
+    .item-art-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 4px;
+      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.55));
+      transition: transform 0.2s ease;
+    }
+    .item-card:hover .item-art-img {
+      transform: scale(1.08);
+    }
+    .item-fallback-badge {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.75rem;
+      color: #cbd5e1;
     }
   </style>
 </head>
@@ -150,6 +180,11 @@
       { id: 3, label: "3★ (-20%)", short: "3★", reduction: 0.20 }
     ];
 
+    const STORE_IMG_DIR = "images/stores";
+    const ITEM_IMG_DIR = "images/items";
+
+    // Store images load from: images/stores/<store.id>.png (or store.img if specified)
+    // Item images load from: images/items/<slugified-item-name>.png (or item.img if specified)
     const STORES = [
       // ==================== YEAR-ROUND (14) ====================
       {
@@ -158,7 +193,6 @@
         group: "Year-Round",
         unlockLv: 1,
         buildCost: "100 §",
-        sprite: [0, 0],
         items: [
           { name: "Nails", lv: 1, price: 80, mins: 5, mats: "2 Metal" },
           { name: "Planks", lv: 3, price: 120, mins: 30, mats: "2 Wood" },
@@ -174,7 +208,6 @@
         group: "Year-Round",
         unlockLv: 4,
         buildCost: "2,500 §",
-        sprite: [0, 2],
         items: [
           { name: "Hammer", lv: 4, price: 90, mins: 14, mats: "1 Metal, 1 Wood" },
           { name: "Measuring Tape", lv: 6, price: 110, mins: 20, mats: "1 Metal, 1 Plastic" },
@@ -190,7 +223,6 @@
         group: "Year-Round",
         unlockLv: 8,
         buildCost: "5,000 §",
-        sprite: [1, 1],
         items: [
           { name: "Vegetables", lv: 8, price: 160, mins: 20, mats: "2 Seeds" },
           { name: "Flour Bag", lv: 17, price: 570, mins: 30, mats: "2 Seeds, 2 Textiles" },
@@ -207,7 +239,6 @@
         group: "Year-Round",
         unlockLv: 10,
         buildCost: "8,000 §",
-        sprite: [5, 1],
         items: [
           { name: "Chairs", lv: 10, price: 300, mins: 20, mats: "2 Wood, 1 Nail, 1 Hammer" },
           { name: "Tables", lv: 16, price: 500, mins: 30, mats: "1 Plank, 2 Nails, 1 Hammer" },
@@ -222,7 +253,6 @@
         group: "Year-Round",
         unlockLv: 14,
         buildCost: "13,000 §",
-        sprite: [6, 1],
         items: [
           { name: "Grass", lv: 14, price: 310, mins: 30, mats: "1 Seed, 1 Shovel" },
           { name: "Tree Saplings", lv: 16, price: 420, mins: 90, mats: "2 Seeds, 1 Shovel" },
@@ -238,7 +268,6 @@
         group: "Year-Round",
         unlockLv: 18,
         buildCost: "17,000 §",
-        sprite: [6, 0],
         items: [
           { name: "Donuts", lv: 18, price: 950, mins: 45, mats: "1 Flour Bag, 1 Sugar & Spices" },
           { name: "Green Smoothie", lv: 20, price: 1150, mins: 30, mats: "1 Fruit & Berries, 1 Vegetables (Verify 1 vs 2 Veg)" },
@@ -254,7 +283,6 @@
         group: "Year-Round",
         unlockLv: 19,
         buildCost: "22,000 §",
-        sprite: [2, 1],
         items: [
           { name: "Cap", lv: 19, price: 600, mins: 60, mats: "2 Textiles, 1 Measuring Tape" },
           { name: "Shoes", lv: 21, price: 980, mins: 75, mats: "2 Textiles, 1 Plastic, 1 Glue" },
@@ -269,7 +297,6 @@
         group: "Year-Round",
         unlockLv: 25,
         buildCost: "25,000 §",
-        sprite: [3, 1],
         items: [
           { name: "Ice Cream Sandwich", lv: 25, price: 2560, mins: 14, mats: "1 Bread Roll, 1 Cream" },
           { name: "Pizza", lv: 28, price: 2560, mins: 24, mats: "1 Flour Bag, 1 Cheese, 1 Beef" },
@@ -285,7 +312,6 @@
         group: "Year-Round",
         unlockLv: 29,
         buildCost: "30,000 §",
-        sprite: [1, 2],
         items: [
           { name: "BBQ Grill", lv: 29, price: 530, mins: 165, mats: "3 Metal, 1 Cooking Utensils" },
           { name: "Refrigerator", lv: 35, price: 1060, mins: 210, mats: "2 Plastic, 2 Chemicals, 2 Electrical Comp." },
@@ -300,7 +326,6 @@
         group: "Year-Round",
         unlockLv: 35,
         buildCost: "80,000 §",
-        sprite: [4, 2],
         items: [
           { name: "Tennis Racket", lv: 35, price: 0, mins: 0, mats: "Verify stats in-game" },
           { name: "Sports Drink", lv: 35, price: 0, mins: 0, mats: "Verify stats in-game" },
@@ -315,7 +340,6 @@
         group: "Year-Round",
         unlockLv: 40,
         buildCost: "100,000 §",
-        sprite: [5, 2],
         items: [
           { name: "Letter Blocks", lv: 40, price: 0, mins: 0, mats: "Verify stats in-game" },
           { name: "Kite", lv: 40, price: 0, mins: 0, mats: "Verify stats in-game" },
@@ -329,7 +353,6 @@
         group: "Year-Round",
         unlockLv: 45,
         buildCost: "250,000 §",
-        sprite: [1, 0],
         items: [
           { name: "Wrought Iron", lv: 45, price: 560, mins: 30, mats: "4 Metal, 2 Hammer, 2 Chemicals" },
           { name: "Carved Wood", lv: 54, price: 2800, mins: 60, mats: "5 Planks, 2 Measuring Tape, 2 Drill" },
@@ -344,7 +367,6 @@
         group: "Year-Round",
         unlockLv: 50,
         buildCost: "300,000 §",
-        sprite: [4, 0],
         items: [
           { name: "Wool Shirt", lv: 50, price: 0, mins: 0, mats: "Verify stats in-game" },
           { name: "Picnic Basket", lv: 50, price: 0, mins: 0, mats: "Verify stats in-game" },
@@ -357,7 +379,6 @@
         group: "Year-Round",
         unlockLv: 55,
         buildCost: "350,000 §",
-        sprite: [5, 0],
         items: [
           { name: "Tiramisu", lv: 55, price: 0, mins: 0, mats: "Verify stats in-game" },
           { name: "Churros", lv: 55, price: 0, mins: 0, mats: "Verify stats in-game" },
@@ -374,7 +395,6 @@
         group: "Regional",
         unlockLv: 25,
         buildCost: "13,000 §",
-        sprite: [0, 1],
         items: [
           { name: "Reusable Bag", lv: 25, price: 0, mins: 16, mats: "2 Recycled Fabric" },
           { name: "Ecological Shoes", lv: 30, price: 0, mins: 90, mats: "2 Recycled Fabric, 1 Glue, 1 Measuring Tape" },
@@ -387,7 +407,6 @@
         group: "Regional",
         unlockLv: 25,
         buildCost: "13,000 §",
-        sprite: [6, 2],
         items: [
           { name: "Coconut Oil", lv: 25, price: 0, mins: 16, mats: "2 Coconut" },
           { name: "Face Cream", lv: 30, price: 0, mins: 90, mats: "2 Coconut Oil, 2 Chemicals" },
@@ -400,7 +419,6 @@
         group: "Regional",
         unlockLv: 25,
         buildCost: "13,000 §",
-        sprite: [2, 0],
         items: [
           { name: "Motor Oil", lv: 25, price: 0, mins: 16, mats: "2 Crude Oil" },
           { name: "Car Tire", lv: 30, price: 0, mins: 90, mats: "2 Crude Oil, 2 Glue, 3 Nails" },
@@ -413,7 +431,6 @@
         group: "Regional",
         unlockLv: 25,
         buildCost: "13,000 §",
-        sprite: [3, 2],
         items: [
           { name: "String", lv: 25, price: 0, mins: 16, mats: "2 Silk" },
           { name: "Fan", lv: 30, price: 0, mins: 90, mats: "2 Silk, 1 Wood, 2 Glue" },
@@ -426,7 +443,6 @@
         group: "Regional",
         unlockLv: 25,
         buildCost: "13,000 §",
-        sprite: [4, 1],
         items: [
           { name: "Canned Fish", lv: 25, price: 120, mins: 20, mats: "1 Fish, 1 Metal" },
           { name: "Fish Soup", lv: 30, price: 400, mins: 120, mats: "1 Vegetable, 2 Fish, 2 Cooking Utensils" },
@@ -441,7 +457,6 @@
         group: "Seasonal",
         unlockLv: 6,
         buildCost: "Free (Seasonal)",
-        sprite: [2, 2],
         items: [
           { name: "Toy Horse", lv: 6, price: 0, mins: 0, mats: "Winter Seasonal • Verify stats" },
           { name: "Holiday Decorations", lv: 6, price: 0, mins: 0, mats: "Winter Seasonal • Verify stats" },
@@ -456,7 +471,6 @@
         group: "Seasonal",
         unlockLv: 6,
         buildCost: "Free (Seasonal)",
-        sprite: [3, 0],
         items: [
           { name: "Chocolate Bar", lv: 6, price: 0, mins: 0, mats: "Spring Seasonal • Verify stats" },
           { name: "Chocolate Eggs", lv: 6, price: 0, mins: 0, mats: "Spring Seasonal • Verify stats" },
@@ -472,59 +486,64 @@
     let expandedItemKey = null;
     let searchQuery = "";
     let includeIngredients = false;
-    const croppedStoreUrls = {};
 
-    // Slice exact building artwork from the 7x3 directory image using an offscreen Canvas
-    const dirImg = new Image();
-    dirImg.onload = () => {
-      const W = dirImg.naturalWidth;
-      const H = dirImg.naturalHeight;
+    function slugifyName(text) {
+      return text
+        .toLowerCase()
+        .replace(/\(.*?\)/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    }
 
-      const colEdges = [0.025, 0.161, 0.296, 0.432, 0.568, 0.704, 0.839, 0.975];
-      const rowBands = [
-        [0.195, 0.378],
-        [0.455, 0.638],
-        [0.715, 0.898]
-      ];
+    function getInitials(label) {
+      return label
+        .replace(/\(.*?\)/g, "")
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map(w => w[0] || "")
+        .join("")
+        .toUpperCase();
+    }
 
-      STORES.forEach(store => {
-        const [c, r] = store.sprite;
-        const sx = Math.round(colEdges[c] * W);
-        const sw = Math.round((colEdges[c + 1] - colEdges[c]) * W);
-        const sy = Math.round(rowBands[r][0] * H);
-        const sh = Math.round((rowBands[r][1] - rowBands[r][0]) * H);
+    function getStoreImageSrc(store) {
+      return store.img ? store.img : `${STORE_IMG_DIR}/${store.id}.png`;
+    }
 
-        const canvas = document.createElement("canvas");
-        canvas.width = sw;
-        canvas.height = sh;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(dirImg, sx, sy, sw, sh, 0, 0, sw, sh);
+    function getItemImageSrc(item) {
+      return item.img ? item.img : `${ITEM_IMG_DIR}/${slugifyName(item.name)}.png`;
+    }
 
-        try {
-          croppedStoreUrls[store.id] = canvas.toDataURL("image/png");
-        } catch (e) {
-          croppedStoreUrls[store.id] = null;
-        }
-      });
-
-      renderStores();
-      renderItems();
-    };
-    dirImg.src = "stores-directory.png";
-
-    function renderStoreArtwork(store, sizeClass = "w-16 h-14") {
-      const dataUrl = croppedStoreUrls[store.id];
-      if (dataUrl) {
-        return `
-          <div class="store-art-frame ${sizeClass} rounded-xl border border-slate-700/60 shrink-0">
-            <img src="${dataUrl}" alt="${store.name}" class="store-art-img" />
-          </div>
-        `;
-      }
-      const initials = store.name.split(" ").slice(0, 2).map(w => w[0]).join("");
+    function renderStoreArtwork(store, sizeClass = "w-16 h-14", badgeTextClass = "text-sm") {
+      const src = getStoreImageSrc(store);
+      const initials = getInitials(store.name);
       return `
-        <div class="store-art-frame ${sizeClass} rounded-xl border border-slate-700/60 shrink-0 font-extrabold text-cyan-300 text-sm tracking-tight">
-          ${initials}
+        <div class="store-art-wrap ${sizeClass}">
+          <img
+            src="${src}"
+            alt="${store.name}"
+            loading="lazy"
+            class="store-art-img"
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+          />
+          <div class="store-fallback-badge ${badgeTextClass}" style="display: none;">${initials}</div>
+        </div>
+      `;
+    }
+
+    function renderItemArtwork(item, sizeClass = "w-12 h-12") {
+      const src = getItemImageSrc(item);
+      const initials = getInitials(item.name);
+      return `
+        <div class="item-art-wrap ${sizeClass}">
+          <img
+            src="${src}"
+            alt="${item.name}"
+            loading="lazy"
+            class="item-art-img"
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+          />
+          <div class="item-fallback-badge" style="display: none;">${initials}</div>
         </div>
       `;
     }
@@ -657,7 +676,7 @@
               : "bg-slate-900/65 border-slate-800/75 hover:bg-slate-800/55 hover:border-slate-700/80"
           }">
             ${isSelected ? `<span class="absolute left-0 top-2.5 bottom-2.5 w-1 rounded-r-full bg-cyan-400"></span>` : ""}
-            ${renderStoreArtwork(store, "w-16 h-14")}
+            ${renderStoreArtwork(store, "w-16 h-14", "text-sm")}
             <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between gap-2">
                 <span class="font-bold text-xs sm:text-[13.5px] tracking-tight text-slate-100 truncate group-hover:text-cyan-200 transition">${store.name}</span>
@@ -714,7 +733,7 @@
         bannerEl.innerHTML = `
           <div class="relative overflow-hidden bg-gradient-to-br from-slate-900/95 via-slate-900 to-cyan-950/25 border border-slate-800/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
             <div class="flex items-center gap-4">
-              ${renderStoreArtwork(store, "w-24 h-20 sm:w-28 sm:h-24")}
+              ${renderStoreArtwork(store, "w-24 h-20 sm:w-28 sm:h-24", "text-lg")}
               <div>
                 <div class="flex flex-wrap items-center gap-2 mb-1">
                   <span class="text-[11px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">${store.group}</span>
@@ -773,18 +792,21 @@
         }).join("");
 
         return `
-          <div onclick="toggleItem('${itemKey.replace(/'/g, "\\'")}')" class="cursor-pointer bg-slate-900/90 hover:bg-slate-800/80 border ${
+          <div onclick="toggleItem('${itemKey.replace(/'/g, "\\'")}')" class="item-card cursor-pointer bg-slate-900/90 hover:bg-slate-800/80 border ${
             isOpen ? "border-cyan-400" : "border-slate-800/90"
           } rounded-2xl p-4 transition select-none">
-            <div class="flex items-start justify-between gap-2">
-              <div>
-                <h3 class="font-bold text-white text-base">${item.name}</h3>
-                <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
-                  <span class="text-[11px] text-slate-400">Unlock Lv.${item.lv}</span>
-                  ${q ? `<button onclick="event.stopPropagation(); selectStore('${store.id}')" class="text-[10px] font-semibold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 transition">${store.name}</button>` : ""}
+            <div class="flex items-start justify-between gap-2.5">
+              <div class="flex items-center gap-3 min-w-0">
+                ${renderItemArtwork(item, "w-12 h-12")}
+                <div class="min-w-0">
+                  <h3 class="font-bold text-white text-base truncate">${item.name}</h3>
+                  <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
+                    <span class="text-[11px] text-slate-400">Unlock Lv.${item.lv}</span>
+                    ${q ? `<button onclick="event.stopPropagation(); selectStore('${store.id}')" class="text-[10px] font-semibold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 transition">${store.name}</button>` : ""}
+                  </div>
                 </div>
               </div>
-              <span class="font-mono text-xs font-bold px-2.5 py-1 rounded-lg ${
+              <span class="font-mono text-xs font-bold px-2.5 py-1 rounded-lg shrink-0 ${
                 hasStats ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" : "bg-slate-800 text-amber-300 border border-amber-500/30"
               }">${rateText}</span>
             </div>
@@ -802,8 +824,9 @@
 
             ${isOpen ? `
               <div class="mt-3 pt-3 border-t border-slate-800 space-y-2.5">
-                <div class="text-xs text-slate-300">
-                  <span class="text-slate-500">Materials:</span> ${item.mats}
+                <div class="flex items-center gap-2.5 text-xs text-slate-300">
+                  <span class="text-slate-500 shrink-0">Materials:</span>
+                  <span>${item.mats}</span>
                 </div>
                 <div>
                   <span class="block text-[10px] uppercase tracking-wider text-slate-400 mb-1.5">Production Time &amp; Rate by Star Level</span>
